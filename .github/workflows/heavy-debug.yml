@@ -1,4 +1,4 @@
-name: MinGW64 heavy debug
+name: MinGW64 SDL1 heavy debug
 
 on:
   workflow_dispatch:
@@ -28,21 +28,28 @@ jobs:
             mingw-w64-x86_64-nasm
             mingw-w64-x86_64-ncurses
 
-      - name: Build with heavy debugger
-        run: ./build-mingw --enable-debug=heavy
+      - name: Build SDL1 with heavy debugger
+        run: |
+          sed -i "s/make -j3/make -j$(nproc)/" build-mingw
+          ./build-mingw --enable-debug=heavy
 
       - name: Confirm heavy debugger actually got enabled
         run: grep '^#define C_HEAVY_DEBUG' config.h
 
-      - name: Stage exe + runtime DLLs
+      - name: Stage exe
         run: |
           mkdir -p dist
           cp src/dosbox-x.exe dist/
-          cp dosbox-x.reference.conf dist/ || true
-          ldd src/dosbox-x.exe | grep -i '/mingw64/bin' \
-            | awk '{print $3}' | sort -u | xargs -I{} cp -n {} dist/
+          cp dosbox-x.reference.conf dist/ 2>/dev/null || true
+          deps=$(ldd src/dosbox-x.exe | grep -i '/mingw64/bin' | awk '{print $3}' | sort -u || true)
+          if [ -n "$deps" ]; then
+            echo "$deps" | xargs -I{} cp {} dist/
+          else
+            echo "Statically linked — no MinGW DLLs to bundle."
+          fi
+          ls -la dist/
 
       - uses: actions/upload-artifact@v4
         with:
-          name: dosbox-x-mingw64-heavydebug
+          name: dosbox-x-mingw64-sdl1-heavydebug
           path: dist/
